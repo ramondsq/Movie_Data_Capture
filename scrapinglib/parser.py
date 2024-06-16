@@ -118,13 +118,6 @@ class Parser:
         return url
 
     def getHtml(self, url, type = None):
-        """
-        设置请求头 Accept-Language 为简体中文（javbus需要）
-        """
-        self.extraheader = {
-            'Accept-Language': 'zh-CN,zh;q=0.9'
-        }
-
         """ 访问网页
         """
         resp = httprequest.get(url, cookies=self.cookies, proxies=self.proxies, extra_headers=self.extraheader, verify=self.verify, return_type=type)
