@@ -435,7 +435,7 @@ def rm_empty_folder(path):
     deleted = set()
     for current_dir, subdirs, files in os.walk(abspath, topdown=False):
         try:
-            still_has_subdirs = any(_ for subdir in subdirs if os.path.join(current_dir, subdir) not in deleted)
+            still_has_subdirs = any(True for subdir in subdirs if os.path.join(current_dir, subdir) not in deleted)
             if not any(files) and not still_has_subdirs and not os.path.samefile(path, current_dir):
                 os.rmdir(current_dir)
                 deleted.add(current_dir)
