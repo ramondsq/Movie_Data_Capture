@@ -9,9 +9,15 @@ import json
 from PIL import Image
 from io import BytesIO
 from datetime import datetime
+
 # from videoprops import get_video_properties
 from lxml import etree
-from ADC_function import file_not_exist_or_empty, get_html, parallel_download_files, cn_space
+from ADC_function import (
+    file_not_exist_or_empty,
+    get_html,
+    parallel_download_files,
+    cn_space,
+)
 from scraper import get_data_from_json
 from number_parser import is_uncensored
 from ImageProcessing import cutImage
