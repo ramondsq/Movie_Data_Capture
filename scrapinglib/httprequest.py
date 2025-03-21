@@ -21,7 +21,7 @@ def get(url: str, cookies=None, ua: str = None, extra_headers=None, return_type:
     """
     errors = ""
     headers = {"User-Agent": ua or G_USER_AGENT}
-    if extra_headers != None:
+    if extra_headers is not None:
         headers.update(extra_headers)
     for i in range(retry):
         try:
@@ -135,7 +135,7 @@ def get_html_by_form(url, form_select: str = None, fields: dict = None, cookies:
         result = browser.open(url)
         if not result.ok:
             return None
-        form = browser.select_form() if form_select is None else browser.select_form(form_select)
+        # form = browser.select_form() if form_select is None else browser.select_form(form_select)
         if isinstance(fields, dict):
             for k, v in fields.items():
                 browser[k] = v
