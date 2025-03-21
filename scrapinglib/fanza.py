@@ -145,7 +145,7 @@ class Fanza(Parser):
             extrafanart_images = re.findall(r'<img.*?src=\"(.*?)\"', htmltext)
             if extrafanart_images:
                 sheet = []
-                for img_url in extrafanart_images:
+                for img_url in extrafanart_images[1:]:
                     url_cuts = img_url.rsplit('-', 1)
                     sheet.append(url_cuts[0] + 'jp-' + url_cuts[1])
                 return sheet
