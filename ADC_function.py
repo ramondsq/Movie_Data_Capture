@@ -219,7 +219,7 @@ def get_html_by_form(url, form_select: str = None, fields: dict = None, cookies:
         result = browser.open(url)
         if not result.ok:
             return None
-        form = browser.select_form() if form_select is None else browser.select_form(form_select)
+        # form = browser.select_form() if form_select is None else browser.select_form(form_select)
         if isinstance(fields, dict):
             for k, v in fields.items():
                 browser[k] = v
@@ -320,7 +320,7 @@ def translate(
     """
     trans_result = ""
     # 中文句子如果包含&等符号会被谷歌翻译截断损失内容，而且中文翻译到中文也没有意义，故而忽略，只翻译带有日语假名的
-    if (is_japanese(src) == False) and ("zh_" in target_language):
+    if (is_japanese(src) is False) and ("zh_" in target_language):
         return src
     if engine == "google-free":
         gsite = config.getInstance().get_translate_service_site()
@@ -402,7 +402,7 @@ def load_cookies(cookie_json_filename: str) -> typing.Tuple[typing.Optional[dict
         if not cookies_filename:
             return None, None
         return json.loads(Path(cookies_filename).read_text(encoding='utf-8')), cookies_filename
-    except:
+    except Exception:
         return None, None
 
 
@@ -445,7 +445,7 @@ def download_file_with_filename(url: str, filename: str, path: str) -> None:
                 if not os.path.exists(path):
                     try:
                         os.makedirs(path)
-                    except:
+                    except Exception:
                         print(f"[-]Fatal error! Can not make folder '{path}'")
                         os._exit(0)
                 r = get_html(url=url, return_type='content')
@@ -459,7 +459,7 @@ def download_file_with_filename(url: str, filename: str, path: str) -> None:
                 if not os.path.exists(path):
                     try:
                         os.makedirs(path)
-                    except:
+                    except Exception:
                         print(f"[-]Fatal error! Can not make folder '{path}'")
                         os._exit(0)
                 r = get_html(url=url, return_type='content')
@@ -570,7 +570,8 @@ Purpose: benchmark get_html_session
 TODO: may be this should move to unittest directory
 """
 if __name__ == "__main__":
-    import sys, timeit
+    import sys
+    import timeit
     from http.client import HTTPConnection
 
 

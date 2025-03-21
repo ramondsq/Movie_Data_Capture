@@ -2,18 +2,21 @@ import os.path
 import pathlib
 import shutil
 import sys
-
+import re
+import time
+import requests
+import json
 from PIL import Image
 from io import BytesIO
 from datetime import datetime
 # from videoprops import get_video_properties
-
-from ADC_function import *
+from lxml import etree
+from ADC_function import file_not_exist_or_empty, get_html, parallel_download_files, cn_space
 from scraper import get_data_from_json
 from number_parser import is_uncensored
 from ImageProcessing import cutImage
-
-
+from pathlib import Path
+import config
 # from WebCrawler import get_data_from_json
 
 
@@ -49,7 +52,7 @@ def moveFailedFolder(filepath):
                 print("[-]File Exists while moving to FailedFolder")
                 return
             shutil.move(filepath, failed_name)
-        except:
+        except Exception:
             print("[-]File Moving to FailedFolder unsuccessful!")
 
 
@@ -93,7 +96,7 @@ def small_cover_check(path, filename, cover_small, movie_path, json_headers=None
         and not file_not_exist_or_empty(str(full_filepath))
     ):
         return
-    if json_headers != None:
+    if json_headers is not None:
         download_file_with_filename(
             cover_small, filename, path, movie_path, json_headers["headers"]
         )
@@ -138,7 +141,7 @@ def create_folder(json_data):  # 创建文件夹
         path = escape_path(path, conf.escape_literals())
         try:
             os.makedirs(path)
-        except:
+        except Exception:
             path = (
                 success_folder
                 + "/"
@@ -147,7 +150,7 @@ def create_folder(json_data):  # 创建文件夹
             path = escape_path(path, conf.escape_literals())
             try:
                 os.makedirs(path)
-            except:
+            except Exception:
                 print(f"[-]Fatal error! Can not make folder '{path}'")
                 os._exit(0)
 
@@ -180,7 +183,7 @@ def download_file_with_filename(url, filename, path, filepath, json_headers=None
             if not os.path.exists(path):
                 try:
                     os.makedirs(path)
-                except:
+                except Exception:
                     print(f"[-]Fatal error! Can not make folder '{path}'")
                     os._exit(0)
             r = get_html(url=url, return_type="content", json_headers=json_headers)
@@ -373,7 +376,7 @@ def image_ext(url):
         if ext in {".jpg", ".jpge", ".bmp", ".png", ".gif"}:
             return ext
         return ".jpg"
-    except:
+    except Exception:
         return ".jpg"
 
 
@@ -385,7 +388,7 @@ def image_download(cover, fanart_path, thumb_path, path, filepath, json_headers=
         and not file_not_exist_or_empty(full_filepath)
     ):
         return
-    if json_headers != None:
+    if json_headers is not None:
         if (
             download_file_with_filename(
                 cover, thumb_path, path, filepath, json_headers["headers"]
@@ -403,7 +406,7 @@ def image_download(cover, fanart_path, thumb_path, path, filepath, json_headers=
     for i in range(configProxy.retry):
         if file_not_exist_or_empty(full_filepath):
             print("[!]Image Download Failed! Trying again. [{}/3]", i + 1)
-            if json_headers != None:
+            if json_headers is not None:
                 download_file_with_filename(
                     cover, thumb_path, path, filepath, json_headers["headers"]
                 )
@@ -469,7 +472,7 @@ def print_files(
         if not os.path.exists(path):
             try:
                 os.makedirs(path)
-            except:
+            except Exception:
                 print(f"[-]Fatal error! can not make folder '{path}'")
                 os._exit(0)
 
@@ -477,7 +480,7 @@ def print_files(
         try:
             if os.path.isfile(nfo_path):
                 old_nfo = etree.parse(nfo_path)
-        except:
+        except Exception:
             pass
         # KODI内查看影片信息时找不到number，配置naming_rule=number+'#'+title虽可解决
         # 但使得标题太长，放入时常为空的outline内会更适合，软件给outline留出的显示版面也较大
@@ -515,7 +518,7 @@ def print_files(
             print("  <mpaa>JP-18+</mpaa>", file=code)
             try:
                 print("  <set>" + series + "</set>", file=code)
-            except:
+            except Exception:
                 print("  <set></set>", file=code)
             print("  <studio>" + studio + "</studio>", file=code)
             print("  <year>" + year + "</year>", file=code)
@@ -529,7 +532,7 @@ def print_files(
                 "  <runtime>" + str(runtime).replace(" ", "") + "</runtime>", file=code
             )
 
-            if False != conf.get_direct():
+            if False is not conf.get_direct():
                 print("  <director>" + director + "</director>", file=code)
 
             print("  <poster>" + poster_path + "</poster>", file=code)
@@ -545,10 +548,10 @@ def print_files(
                             "    <thumb>" + actor_photo.get(str(key)) + "</thumb>",
                             file=code,
                         )
-                    except:
+                    except Exception:
                         pass
                     print("  </actor>", file=code)
-            except:
+            except Exception:
                 pass
             print("  <maker>" + studio + "</maker>", file=code)
             print("  <label>" + label + "</label>", file=code)
@@ -559,7 +562,7 @@ def print_files(
                     for key in actor_list:
                         try:
                             print("  <tag>" + key + "</tag>", file=code)
-                        except:
+                        except Exception:
                             pass
                 else:
                     if cn_sub:
@@ -589,7 +592,7 @@ def print_files(
             try:
                 for i in tag:
                     print("  <genre>" + i + "</genre>", file=code)
-            except:
+            except Exception:
                 pass
             print("  <num>" + number + "</num>", file=code)
             print("  <premiered>" + release + "</premiered>", file=code)
@@ -600,7 +603,7 @@ def print_files(
                     xur = old_nfo.xpath("//userrating/text()")[0]
                     if isinstance(xur, str) and re.match("\d+\.\d+|\d+", xur.strip()):
                         print(f"  <userrating>{xur.strip()}</userrating>", file=code)
-                except:
+                except Exception:
                     pass
             try:
                 f_rating = json_data.get("userrating")
@@ -616,7 +619,7 @@ def print_files(
   </ratings>""",
                     file=code,
                 )
-            except:
+            except Exception:
                 if old_nfo:
                     try:
                         for rtag in ("rating", "criticrating"):
@@ -626,10 +629,10 @@ def print_files(
                             ):
                                 print(f"  <{rtag}>{xur.strip()}</{rtag}>", file=code)
                         f_rating = old_nfo.xpath(
-                            f"//ratings/rating[@name='javdb']/value/text()"
+                            "//ratings/rating[@name='javdb']/value/text()"
                         )[0]
                         uc = old_nfo.xpath(
-                            f"//ratings/rating[@name='javdb']/votes/text()"
+                            "//ratings/rating[@name='javdb']/votes/text()"
                         )[0]
                         print(
                             f"""  <ratings>
@@ -640,7 +643,7 @@ def print_files(
   </ratings>""",
                             file=code,
                         )
-                    except:
+                    except Exception:
                         pass
             print("  <cover>" + cover + "</cover>", file=code)
             if config.getInstance().is_trailer():
@@ -800,7 +803,7 @@ def paste_file_to_folder(
             # 跨卷或跨盘符无法建立硬链接导致异常，回落到建立软链接
             try:
                 os.link(filepath, targetpath, follow_symlinks=False)
-            except:
+            except Exception:
                 create_softlink = True
         if link_mode == 1 or create_softlink:
             # 先尝试采用相对路径，以便网络访问时能正确打开视频，失败则可能是因为跨盘符等原因无法支持
@@ -808,7 +811,7 @@ def paste_file_to_folder(
             try:
                 filerelpath = os.path.relpath(filepath, path)
                 os.symlink(filerelpath, targetpath)
-            except:
+            except Exception:
                 os.symlink(str(filepath_obj.resolve()), targetpath)
         return
 
@@ -848,13 +851,13 @@ def paste_file_to_folder_mode2(
         elif link_mode == 2:
             try:
                 os.link(filepath, targetpath, follow_symlinks=False)
-            except:
+            except Exception:
                 create_softlink = True
         if link_mode == 1 or create_softlink:
             try:
                 filerelpath = os.path.relpath(filepath, path)
                 os.symlink(filerelpath, targetpath)
-            except:
+            except Exception:
                 os.symlink(str(filepath_obj.resolve()), targetpath)
         print("[!]Link =>          ", path)
     except FileExistsError as fee:
@@ -895,7 +898,7 @@ def linkImage(path, number, part, leak_word, c_word, hack_word, ext):
             continue
         try:
             os.link(str(normal_path), str(multi_path), follow_symlinks=False)
-        except:
+        except Exception:
             shutil.copyfile(str(normal_path), str(multi_path))
 
 
@@ -914,7 +917,7 @@ def debug_print(data: json):
             print(f"[+]  - {i:<{cn_space(i, 19)}} : {v}")
 
         print("[+] ------- DEBUG INFO -------")
-    except:
+    except Exception:
         pass
 
 
@@ -977,7 +980,7 @@ def core_main_no_net_op(movie_path, number):
             nfo_xml = etree.parse(full_nfo)
             nfo_fanart_path = nfo_xml.xpath("//fanart/text()")[0]
             ext = Path(nfo_fanart_path).suffix
-        except:
+        except Exception:
             return
     else:
         return
@@ -1216,7 +1219,7 @@ def core_main(movie_path, number_th, oCC, specified_source=None, specified_url=N
                 # 下载演员头像 KODI .actors 目录位置
                 if conf.download_actor_photo_for_kodi():
                     actor_photo_download(json_data.get("actor_photo"), path, number)
-            except:
+            except Exception:
                 pass
 
         # 裁剪图
@@ -1350,7 +1353,7 @@ def core_main(movie_path, number_th, oCC, specified_source=None, specified_url=N
                 # 下载演员头像 KODI .actors 目录位置
                 if conf.download_actor_photo_for_kodi():
                     actor_photo_download(json_data.get("actor_photo"), path, number)
-            except:
+            except Exception:
                 pass
 
         # 裁剪图
