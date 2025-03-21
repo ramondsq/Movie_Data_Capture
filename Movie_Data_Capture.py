@@ -287,7 +287,7 @@ def dupe_stdout_to_logfile(logdir: str):
     if not log_dir.exists():
         try:
             log_dir.mkdir(parents=True, exist_ok=True)
-        except:
+        except Exception:
             pass
     if not log_dir.is_dir():
         return  # Tips for disabling logs by change directory to a same name empty regular file
@@ -307,7 +307,7 @@ def close_logfile(logdir: str):
     filepath = None
     try:
         filepath = sys.stdout.filepath
-    except:
+    except Exception:
         pass
     sys.stdout.close()
     sys.stderr.close()
@@ -320,7 +320,7 @@ def close_logfile(logdir: str):
         if f.stat().st_size == 0:
             try:
                 f.unlink(missing_ok=True)
-            except:
+            except Exception:
                 pass
     # 合并日志 只检测日志目录内的文本日志，忽略子目录。三天前的日志，按日合并为单个日志，三个月前的日志，
     # 按月合并为单个月志，去年及以前的月志，今年4月以后将之按年合并为年志
@@ -364,7 +364,7 @@ def close_logfile(logdir: str):
                 with open(day_file_name, "a", encoding="utf-8") as m:
                     m.write(f.read_text(encoding="utf-8"))
                 f.unlink(missing_ok=True)
-            except:
+            except Exception:
                 pass
     # 第二步，合并到月
     for i in range(1):  # 利用1次循环的break跳到第二步，避免大块if缩进或者使用goto语法
@@ -388,7 +388,7 @@ def close_logfile(logdir: str):
                 with open(month_file_name, "a", encoding="utf-8") as m:
                     m.write(f.read_text(encoding="utf-8"))
                 f.unlink(missing_ok=True)
-            except:
+            except Exception:
                 pass
     # 第三步，月合并到年
     for i in range(1):
@@ -411,7 +411,7 @@ def close_logfile(logdir: str):
                 with open(year_file_name, "a", encoding="utf-8") as y:
                     y.write(f.read_text(encoding="utf-8"))
                 f.unlink(missing_ok=True)
-            except:
+            except Exception:
                 pass
     # 第四步，压缩年志 如果有压缩需求，请自行手工压缩，或者使用外部脚本来定时完成。推荐nongnu的lzip，对于
     # 这种粒度的文本日志，压缩比是目前最好的。lzip -9的运行参数下，日志压缩比要高于xz -9，而且内存占用更少，
@@ -444,7 +444,7 @@ def movie_lists(source_folder, regexstr: str) -> typing.List[str]:
     if isinstance(regexstr, str) and len(regexstr):
         try:
             cliRE = re.compile(regexstr, re.IGNORECASE)
-        except:
+        except Exception:
             pass
     failed_list_txt_path = Path(conf.failed_folder()).resolve() / "failed_list.txt"
     failed_set = set()
@@ -462,7 +462,7 @@ def movie_lists(source_folder, regexstr: str) -> typing.List[str]:
                     "\n".join(flist) + "\n", encoding="utf-8"
                 )
                 assert len(fset) == 0 and len(flist) == len(failed_set)
-        except:
+        except Exception:
             pass
     if not Path(source_folder).is_dir():
         print("[-]Source folder not found!")
@@ -560,7 +560,7 @@ def create_failed_folder(failed_folder: str):
     if not os.path.exists(failed_folder):
         try:
             os.makedirs(failed_folder)
-        except:
+        except Exception:
             print(f"[-]Fatal error! Can not make folder '{failed_folder}'")
             os._exit(0)
 
@@ -583,7 +583,7 @@ def rm_empty_folder(path):
                 os.rmdir(current_dir)
                 deleted.add(current_dir)
                 print("[+]Deleting empty folder", current_dir)
-        except:
+        except Exception:
             pass
 
 
@@ -763,7 +763,7 @@ def main(args: tuple) -> Path:
                     print(f"[+] [{i}/{len(res)}] Mapping Table Downloaded to {fp}")
                 else:
                     print(f"[-] [{i}/{len(res)}] Mapping Table Download failed")
-        except:
+        except Exception:
             print("[!]" + " WARNING ".center(54, "="))
             print("[!]" + "-- GITHUB CONNECTION FAILED --".center(54))
             print("[!]" + "Failed to check for updates".center(54))
@@ -773,7 +773,7 @@ def main(args: tuple) -> Path:
                 etree.parse(
                     str(Path.home() / ".local" / "share" / "mdc" / "mapping_actor.xml")
                 )
-            except:
+            except Exception:
                 print("[!]" + "Failed to load mapping table".center(54))
                 print("[!]" + "".center(54, "="))
 
@@ -783,7 +783,7 @@ def main(args: tuple) -> Path:
     ccm = conf.cc_convert_mode()
     try:
         oCC = None if ccm == 0 else OpenCC("t2s.json" if ccm == 1 else "s2t.json")
-    except:
+    except Exception:
         # some OS no OpenCC cpython, try opencc-python-reimplemented.
         # pip uninstall opencc && pip install opencc-python-reimplemented
         oCC = None if ccm == 0 else OpenCC("t2s" if ccm == 1 else "s2t")
@@ -872,7 +872,7 @@ def 分析日志文件(logfile):
         已处理 = int(re.findall(r"\[1/(.*?)] -", logtxt)[0])
         完成数 = logtxt.count(r"[+]Wrote!")
         return 扫描电影数, 已处理, 完成数
-    except:
+    except Exception:
         return None, None, None
 
 
@@ -924,7 +924,7 @@ if __name__ == "__main__":
                     time.sleep(再运行延迟)
                 else:
                     break
-            except:
+            except Exception:
                 break
     else:
         main(args)
