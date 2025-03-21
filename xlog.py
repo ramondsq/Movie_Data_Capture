@@ -44,7 +44,7 @@ class Logger:
                 for i in range(self.last_no - buffer_len, self.last_no - self.buffer_size):
                     try:
                         del self.buffer[i]
-                    except:
+                    except Exception:
                         pass
 
     def setLevel(self, level):
@@ -117,7 +117,7 @@ class Logger:
             self.set_console_color(console_color)
             sys.stderr.write(console_string)
             self.set_console_color(self.reset_color)
-        except:
+        except Exception:
             pass
 
     def log_to_file(self, level, console_color, fmt, *args, **kwargs):
@@ -131,7 +131,7 @@ class Logger:
             self.log_fd.write(string)
             try:
                 self.log_fd.flush()
-            except:
+            except Exception:
                 pass
 
             self.file_size += len(string)
@@ -151,6 +151,7 @@ class Logger:
 
             if self.buffer_size:
                 self.last_no += 1
+                string = '%s [%s]LOG: %s' % (time.ctime()[4:-5], level, fmt % args)
                 self.buffer[self.last_no] = string
                 buffer_len = len(self.buffer)
                 if buffer_len > self.buffer_size:
@@ -211,7 +212,7 @@ class Logger:
             for i in range(self.last_no - buffer_len, self.last_no - self.buffer_size):
                 try:
                     del self.buffer[i]
-                except:
+                except Exception:
                     pass
         self.buffer_lock.release()
 
@@ -325,5 +326,5 @@ if __name__ == '__main__':
 
     try:
         1 / 0
-    except Exception as e:
+    except Exception:
         excp("An error has occurred")

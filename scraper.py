@@ -33,7 +33,7 @@ def get_data_from_json(
     try:
         actor_mapping_data = etree.parse(str(Path.home() / '.local' / 'share' / 'mdc' / 'mapping_actor.xml'))
         info_mapping_data = etree.parse(str(Path.home() / '.local' / 'share' / 'mdc' / 'mapping_info.xml'))
-    except:
+    except Exception:
         actor_mapping_data = etree.fromstring("<html></html>", etree.HTMLParser())
         info_mapping_data = etree.fromstring("<html></html>", etree.HTMLParser())
 
@@ -96,7 +96,7 @@ def get_data_from_json(
         try:
             if json_data.get('allow_number_change'):
                 pass
-        except:
+        except Exception:
             print('[-]Movie number has changed! [{}]->[{}]'.format(file_number, str(json_data.get('number'))))
             return None
 
@@ -114,7 +114,7 @@ def get_data_from_json(
     number = json_data.get('number')
     studio = json_data.get('studio')
     source = json_data.get('source')
-    runtime = json_data.get('runtime')
+    # runtime = json_data.get('runtime')
     outline = json_data.get('outline')
     label = json_data.get('label')
     series = json_data.get('series')
@@ -135,7 +135,7 @@ def get_data_from_json(
     else:
         extrafanart = ''
 
-    imagecut = json_data.get('imagecut')
+    # imagecut = json_data.get('imagecut')
     tag = str(json_data.get('tag')).strip("[ ]").replace("'", '').replace(" ", '').split(',')  # 字符串转列表 @
     while 'XXXX' in tag:
         tag.remove('XXXX')
@@ -197,18 +197,19 @@ def get_data_from_json(
                 try:
                     json_data[translate_value] = title_dict[number]
                     continue
-                except:
+                except Exception:
                     pass
             if conf.get_translate_engine() == "azure":
-                t = translate(
-                    json_data[translate_value],
-                    target_language="zh-Hans",
-                    engine=conf.get_translate_engine(),
-                    key=conf.get_translate_key(),
-                )
+                # t = translate(
+                #     json_data[translate_value],
+                #     target_language="zh-Hans",
+                #     engine=conf.get_translate_engine(),
+                #     key=conf.get_translate_key(),
+                # )
+                pass
             else:
                 if len(json_data[translate_value]):
-                    if type(json_data[translate_value]) == str:
+                    if isinstance(json_data[translate_value], str):
                         json_data[translate_value] = special_characters_replacement(json_data[translate_value])
                         json_data[translate_value] = translate(json_data[translate_value])
                     else:
@@ -250,7 +251,7 @@ def get_data_from_json(
                     elif ccm == 3:
                         json_data['actor_list'] = convert_list(actor_mapping_data, "jp", json_data['actor_list'])
                         json_data['actor'] = convert(actor_mapping_data, "jp", json_data['actor'])
-                except:
+                except Exception:
                     json_data['actor_list'] = [open_cc.convert(aa) for aa in json_data['actor_list']]
                     json_data['actor'] = open_cc.convert(json_data['actor'])
             elif cc == "tag":
@@ -264,7 +265,7 @@ def get_data_from_json(
                     elif ccm == 3:
                         json_data[cc] = convert_list(info_mapping_data, "jp", json_data[cc])
                         json_data[cc] = delete_all_elements_in_list("删除", json_data[cc])
-                except:
+                except Exception:
                     json_data[cc] = [open_cc.convert(t) for t in json_data[cc]]
             else:
                 try:
@@ -279,7 +280,7 @@ def get_data_from_json(
                         json_data[cc] = delete_all_elements_in_str("删除", json_data[cc])
                 except IndexError:
                     json_data[cc] = open_cc.convert(json_data[cc])
-                except:
+                except Exception:
                     pass
 
     naming_rule = ""
