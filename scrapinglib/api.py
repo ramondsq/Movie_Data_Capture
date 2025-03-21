@@ -97,7 +97,7 @@ class Scraping:
                     if self.debug:
                         print(f"[+]Find movie [{name}] metadata on website '{source}'")
                     break
-            except:
+            except Exception:
                 continue
 
         # Return if data not found in all sources
@@ -106,7 +106,7 @@ class Scraping:
 
         # If actor is anonymous, Fill in Anonymous
         if len(json_data['actor']) == 0:
-            if config.getInstance().anonymous_fill() == True:
+            if config.getInstance().anonymous_fill() is True:
                 if "zh_" in config.getInstance().get_target_language() or "ZH" in config.getInstance().get_target_language():
                     json_data['actor'] = "佚名"
                 else:
@@ -143,7 +143,7 @@ class Scraping:
                     if self.debug:
                         print(f"[+]Find movie [{number}] metadata on website '{source}'")
                     break
-            except:
+            except Exception:
                 continue
 
         # javdb的封面有水印，如果可以用其他源的封面来替换javdb的封面
@@ -157,7 +157,7 @@ class Scraping:
                     json_data['cover'] = other_json_data['cover']
                     if self.debug:
                         print(f"[+]Find movie [{number}] cover on website '{other_json_data['cover']}'")
-            except:
+            except Exception:
                 pass
 
         # Return if data not found in all sources
@@ -166,7 +166,7 @@ class Scraping:
 
         # If actor is anonymous, Fill in Anonymous
         if len(json_data['actor']) == 0:
-            if config.getInstance().anonymous_fill() == True:
+            if config.getInstance().anonymous_fill() is True:
                 if "zh_" in config.getInstance().get_target_language() or "ZH" in config.getInstance().get_target_language():
                     json_data['actor'] = "佚名"
                 else:
@@ -190,7 +190,7 @@ class Scraping:
         # check sources in func_mapping
         todel = []
         for s in sources:
-            if not s in self.general_full_sources:
+            if s not in self.general_full_sources:
                 print('[!] Source Not Exist : ' + s)
                 todel.append(s)
         for d in todel:
@@ -243,7 +243,7 @@ class Scraping:
         # check sources in func_mapping
         todel = []
         for s in sources:
-            if not s in self.adult_full_sources and config.getInstance().debug():
+            if s not in self.adult_full_sources and config.getInstance().debug():
                 print('[!] Source Not Exist : ' + s)
                 todel.append(s)
         for d in todel:
