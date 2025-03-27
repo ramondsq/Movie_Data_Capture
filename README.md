@@ -1,3 +1,9 @@
+# 如何使用
+
+配置好环境（python 3.9），安装好 `requirements.txt` 中所有依赖，然后直接运行主程序 `Movie_Data_Capture.py` 即可
+
+# 以下为原作者 README
+
 <h1 align="center">Movie Data Capture</h1>
 
 [English](https://github.com/yoshiko2/Movie_Data_Capture/blob/master/README_EN.md)
