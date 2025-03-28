@@ -1,26 +1,26 @@
 import argparse
 import json
 import os
+import platform
 import random
 import re
+import shutil
+import signal
 import sys
 import time
-import shutil
 import typing
-import urllib3
-import signal
-import platform
-import config
-
 from datetime import datetime, timedelta
-from lxml import etree
 from pathlib import Path
+
+import urllib3
+from lxml import etree
 from opencc import OpenCC
 
-from scraper import get_data_from_json
+import config
 from ADC_function import file_modification_days, get_html, parallel_download_files
+from core import core_main, core_main_no_net_op, debug_print, moveFailedFolder
 from number_parser import get_number
-from core import core_main, core_main_no_net_op, moveFailedFolder, debug_print
+from scraper import get_data_from_json
 
 
 def check_update(local_version):
