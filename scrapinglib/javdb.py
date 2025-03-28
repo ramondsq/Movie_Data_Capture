@@ -84,7 +84,7 @@ class Javdb(Parser):
         javdb_url = 'https://' + self.dbsite + '.com/search?q=' + number + '&f=all'
         try:
             resp = self.session.get(javdb_url)
-        except Exception as e:
+        except Exception:
             #print(e)
             raise Exception(f'[!] {self.number}: page not fond in javdb')
 
@@ -186,7 +186,7 @@ class Javdb(Parser):
         video = super().getTrailer(htmltree)
         # 加上数组判空
         if video:
-            if not 'https:' in video:
+            if 'https:' not in video:
                 video_url = 'https:' + video
             else:
                 video_url = video
