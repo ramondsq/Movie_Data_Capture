@@ -172,6 +172,7 @@ def get_data_from_json(
 
     if json_data['source'] == 'fanza':
         json_data['number'] = re.sub(r'(?<=\D)00(?=\d)', '-', json_data['number'])
+        json_data['number'] = re.sub(r'^[0-9]+', '', json_data['number'])
 
     # 返回处理后的json_data
     json_data['title'] = title
