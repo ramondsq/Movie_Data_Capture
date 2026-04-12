@@ -104,8 +104,7 @@ class Parser:
             self.proxies = core.proxies
         if core.verify:
             self.verify = core.verify
-        if core.morestoryline:
-            self.morestoryline = True
+        # storyline is now fetched separately in the pipeline, not during scraping
         if core.specifiedSource == self.source:
             self.specifiedUrl = core.specifiedUrl
 

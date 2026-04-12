@@ -6,6 +6,7 @@ import json
 import logging
 import re
 import secrets
+from concurrent.futures import Future, ThreadPoolExecutor
 from pathlib import Path
 
 from lxml import etree
@@ -64,6 +65,13 @@ def process_movie(
     if movie.number != number:
         number = movie.number
 
+    # --- Launch storyline fetch in background (parallel with downloads) ---
+    storyline_future = None
+    if conf.is_storyline() and not movie.outline:
+        storyline_future = _fetch_storyline_async(
+            movie.number, movie.uncensored, conf,
+        )
+
     # --- Detect file properties from path ---
     props = _detect_file_properties(movie_path, number, movie)
 
@@ -110,6 +118,7 @@ def process_movie(
             cn_sub, leak, uncensored, hack, _4k, iso,
             cover, ext, fanart_name, poster_name, thumb_name,
             headers, download_only_missing, retry, open_cc,
+            storyline_future,
         )
     elif main_mode == 2:
         _process_mode2(
@@ -121,6 +130,7 @@ def process_movie(
             cn_sub, leak, uncensored, hack, _4k, iso,
             cover, ext, fanart_name, poster_name, thumb_name,
             headers, download_only_missing, retry, open_cc,
+            storyline_future,
         )
 
 
@@ -129,6 +139,7 @@ def _process_mode1(
     cn_sub, leak, uncensored, hack, _4k, iso,
     cover, ext, fanart_name, poster_name, thumb_name,
     headers, download_only_missing, retry, open_cc,
+    storyline_future=None,
 ):
     """Mode 1: Full scraping mode — create folder, download, move, write NFO."""
     dest_dir = create_output_folder(
@@ -201,6 +212,9 @@ def _process_mode1(
             conf.watermark_type(),
         )
 
+    # Collect storyline result (was fetching in parallel with downloads)
+    _collect_storyline(movie, storyline_future)
+
     # Write NFO (last step — NFO creation = success marker)
     _write_nfo_file(
         conf, movie, movie_path, dest_dir, number, part, suffix_parts,
@@ -239,6 +253,7 @@ def _process_mode3(
     cn_sub, leak, uncensored, hack, _4k, iso,
     cover, ext, fanart_name, poster_name, thumb_name,
     headers, download_only_missing, retry, open_cc,
+    storyline_future=None,
 ):
     """Mode 3: Scrape in-place — download metadata/images but don't move files."""
     dest_dir = str(Path(movie_path).parent)
@@ -289,6 +304,9 @@ def _process_mode3(
         link_multi_part_images(
             dest_dir, file_number, part, suffix_parts, ext,
         )
+
+    # Collect storyline result (was fetching in parallel with downloads)
+    _collect_storyline(movie, storyline_future)
 
     # Write NFO
     _write_nfo_file(
@@ -753,6 +771,38 @@ def _write_nfo_file(
     except Exception as e:
         logger.error("NFO write failed: %s", e)
         _move_failed(movie_path)
+
+
+def _fetch_storyline_async(
+    number: str, uncensored: bool, conf,
+) -> Future:
+    """Launch storyline fetch in a background thread, returns a Future."""
+    from mdc.scrapers.storyline import getStoryline
+
+    proxy_conf = conf.proxy()
+    proxies = proxy_conf.proxies() if proxy_conf.enable else None
+    ca_cert = conf.cacert_file() or None
+
+    executor = ThreadPoolExecutor(max_workers=1)
+    future = executor.submit(
+        getStoryline, number, None, None, uncensored, proxies, ca_cert,
+    )
+    # Allow the executor to clean up after the future completes
+    executor.shutdown(wait=False)
+    return future
+
+
+def _collect_storyline(movie: MovieData, future: Future | None) -> None:
+    """Wait for storyline future and fill movie.outline if result is non-empty."""
+    if future is None:
+        return
+    try:
+        result = future.result(timeout=30)
+        if result and isinstance(result, str) and result.strip():
+            movie.outline = result.strip()
+            logger.info("Storyline fetched: %d chars", len(movie.outline))
+    except Exception as e:
+        logger.debug("Storyline fetch failed: %s", e)
 
 
 def _move_failed(filepath: str) -> None:
