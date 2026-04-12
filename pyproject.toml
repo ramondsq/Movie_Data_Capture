@@ -1,22 +1,47 @@
 [project]
 name = "movie-data-capture"
-version = "0.1.0"
-description = "Add your description here"
+version = "7.0.0"
+description = "Scrape movie metadata from Japanese AV databases and organize files for Jellyfin/Emby/Kodi"
 readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [
-    "beautifulsoup4>=4.14.3",
-    "certifi>=2026.1.4",
-    "click>=8.3.1",
-    "cloudscraper>=1.2.71",
-    "dlib-bin>=20.0.0",
-    "face-recognition-models>=0.3.0",
-    "lxml>=6.0.2",
-    "mechanicalsoup>=1.3.0",
-    "numpy>=2.2.6",
+    "certifi",
+    "lxml>=5.0",
     "opencc-python-reimplemented>=0.1.7",
-    "pillow==10.0.1",
-    "pysocks==1.7.1",
-    "requests>=2.32.5",
-    "urllib3==1.26.18",
+    "pillow>=10.0",
+    "pysocks>=1.7",
+    "requests>=2.28",
+    "urllib3>=1.26",
+]
+
+[project.optional-dependencies]
+face = [
+    "dlib-bin>=20.0",
+    "face-recognition>=1.3",
+    "face-recognition-models>=0.3",
+    "numpy>=1.24",
+]
+storyline = [
+    "cloudscraper>=1.2",
+    "mechanicalsoup>=1.3",
+]
+dev = [
+    "pytest>=7.0",
+    "pytest-cov>=4.0",
+]
+
+[project.scripts]
+mdc = "mdc.cli:main"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/mdc"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+markers = [
+    "network: tests that require network access",
 ]
