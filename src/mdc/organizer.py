@@ -55,15 +55,28 @@ def create_output_folder(
     """Create the output folder for a movie based on the naming rule."""
     location = render_naming_rule(location_rule, movie)
 
-    # Truncate long actor lists
+    # Truncate long actor lists or replace with "佚名" if any path
+    # component would exceed the 255-byte filesystem name limit
     if "actor" in location_rule and len(movie.actor) > 100:
-        short_movie = MovieData(**{**movie.__dict__, "actor": "多人作品"})
+        short_movie = MovieData(**{**movie.__dict__, "actor": "佚名"})
         location = render_naming_rule(location_rule, short_movie)
 
     # Truncate long titles
     if "title" in location_rule and len(movie.title) > max_title_len:
         short_title = movie.title[:max_title_len]
         location = location.replace(movie.title, short_title)
+
+    # Check each path component against the 255-byte filename limit;
+    # if any component is too long, replace actor with "佚名" and retry
+    if _any_component_too_long(location):
+        short_movie = MovieData(**{**movie.__dict__, "actor": "佚名"})
+        location = render_naming_rule(location_rule, short_movie)
+        # Still too long (e.g. title is huge) — truncate title aggressively
+        if "title" in location_rule and _any_component_too_long(location):
+            short_movie = MovieData(
+                **{**short_movie.__dict__, "title": movie.title[:30]}
+            )
+            location = render_naming_rule(location_rule, short_movie)
 
     # Ensure relative path (avoid absolute when actor is empty)
     path = os.path.join(success_folder, f"./{location.strip()}")
@@ -214,3 +227,11 @@ def _escape_path(path: str, escape_literals: str) -> str:
     for literal in escape_literals:
         path = path.replace("\\" + literal, "")
     return path
+
+
+def _any_component_too_long(location: str, max_bytes: int = 255) -> bool:
+    """Check if any path component exceeds the filesystem name byte limit."""
+    for part in Path(location).parts:
+        if len(part.encode("utf-8")) > max_bytes:
+            return True
+    return False
