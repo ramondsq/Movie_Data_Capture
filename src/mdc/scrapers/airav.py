@@ -28,7 +28,7 @@ class Airav(Parser):
         if self.specifiedUrl:
             self.detailurl = self.specifiedUrl
         else:
-            self.detailurl = "https://www.airav.wiki/api/video/barcode/" + self.number.upper() + "?lng=zh-CN"
+            self.detailurl = "https://www.airav.io/api/video/barcode/" + self.number.upper() + "?lng=zh-CN"
         if self.addtion_Javbus:
             engine = Javbus()
             javbusinfo = engine.scrape(self.number, self)
@@ -44,15 +44,15 @@ class Airav(Parser):
         return result
 
     # def queryNumberUrl(self, number):
-    #     queryUrl =  "https://cn.airav.wiki/?search=" + number
+    #     queryUrl =  "https://cn.airav.io/?search=" + number
     #     queryTree = self.getHtmlTree(queryUrl)
     #     results = self.getTreeAll(queryTree, '//div[contains(@class,"videoList")]/div/a')
     #     for i in results:
     #         num = self.getTreeElement(i, '//div/div[contains(@class,"videoNumber")]/p[1]/text()')
     #         if num.replace('-','') == number.replace('-','').upper():
     #             self.number = num
-    #             return "https://cn.airav.wiki" + i.attrib['href']
-    #     return 'https://cn.airav.wiki/video/' + number
+    #             return "https://cn.airav.io" + i.attrib['href']
+    #     return 'https://cn.airav.io/video/' + number
 
     def getNum(self, htmltree):
         # if self.addtion_Javbus:
