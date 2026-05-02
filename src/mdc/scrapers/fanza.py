@@ -1,204 +1,290 @@
 # -*- coding: utf-8 -*-
 
+"""Fanza (DMM) scraper using the video.dmm.co.jp GraphQL API."""
+
+import logging
 import re
-from lxml import etree
-from urllib.parse import urlencode
+from urllib.parse import parse_qs, urlparse
+
+import requests
+
+from mdc.models import MovieData
 from mdc.scrapers.base import Parser
+
+logger = logging.getLogger(__name__)
+
+GRAPHQL_ENDPOINT = "https://api.video.dmm.co.jp/graphql"
+PAGE_BASE_URL = "https://video.dmm.co.jp/av/content/?id="
+USER_AGENT = (
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+    "AppleWebKit/537.36 (KHTML, like Gecko) "
+    "Chrome/100.0.4896.133 Safari/537.36"
+)
+
+CONTENT_QUERY = """
+query ContentPageData($id: ID!) {
+  ppvContent(id: $id) {
+    id
+    floor
+    title
+    description
+    isExclusiveDelivery
+    releaseStatus
+    packageImage {
+      largeUrl
+      mediumUrl
+    }
+    sampleImages {
+      number
+      imageUrl
+      largeImageUrl
+    }
+    sample2DMovie {
+      highestMovieUrl
+      hlsMovieUrl
+    }
+    deliveryStartDate
+    makerReleasedAt
+    duration
+    actresses {
+      id
+      name
+      nameRuby
+      imageUrl
+    }
+    histrions {
+      id
+      name
+    }
+    directors {
+      id
+      name
+    }
+    series {
+      id
+      name
+    }
+    maker {
+      id
+      name
+    }
+    label {
+      id
+      name
+    }
+    genres {
+      id
+      name
+    }
+    contentType
+    makerContentId
+  }
+  reviewSummary(contentId: $id) {
+    average
+    total
+  }
+}
+"""
 
 
 class Fanza(Parser):
     source = "fanza"
 
-    expr_title = '//*[starts-with(@id, "title")]/text()'
-    expr_actor = "//td[contains(text(),'出演者')]/following-sibling::td/span/a/text()"
-    # expr_cover = './/head/meta[@property="og:image"]/@content'
-    # expr_extrafanart = '//a[@name="sample-image"]/img/@src'
-    expr_outline = "//div[@class='mg-b20 lh4']/text()"
-    expr_outline2 = "//div[@class='mg-b20 lh4']//p/text()"
-    expr_outline_og = '//head/meta[@property="og:description"]/@content'
-    expr_runtime = "//td[contains(text(),'収録時間')]/following-sibling::td/text()"
+    def extraInit(self):
+        # makerContentId can differ from the input number (e.g. xvsr00876 -> XVSR-876)
+        self.allow_number_change = True
 
-    def search(self, number):
+    def search(self, number: str):
         self.number = number
-        if self.specifiedUrl:
-            self.detailurl = self.specifiedUrl
-            durl = "https://www.dmm.co.jp/age_check/=/declared=yes/?" + urlencode(
-                {"rurl": self.detailurl}
-            )
-            self.htmltree = self.getHtmlTree(durl)
-            result = self.dictformat(self.htmltree)
-            return result
-        # fanza allow letter + number + underscore, normalize the input here
-        # @note: I only find the usage of underscore as h_test123456789
-        fanza_search_number = number
-        # AV_Data_Capture.py.getNumber() over format the input, restore the h_ prefix
-        if fanza_search_number.startswith("h-"):
-            fanza_search_number = fanza_search_number.replace("h-", "h_")
-
-        fanza_search_number = re.sub(r"[^0-9a-zA-Z_]", "", fanza_search_number).lower()
-
-        fanza_urls = [
-            "https://www.dmm.co.jp/digital/videoa/-/detail/=/cid=",
-            "https://www.dmm.co.jp/mono/dvd/-/detail/=/cid=",
-            "https://www.dmm.co.jp/digital/anime/-/detail/=/cid=",
-            "https://www.dmm.co.jp/mono/anime/-/detail/=/cid=",
-            "https://www.dmm.co.jp/digital/videoc/-/detail/=/cid=",
-            "https://www.dmm.co.jp/digital/nikkatsu/-/detail/=/cid=",
-            "https://www.dmm.co.jp/rental/-/detail/=/cid=",
-        ]
-
-        for url in fanza_urls:
-            self.detailurl = url + fanza_search_number
-            url = "https://www.dmm.co.jp/age_check/=/declared=yes/?" + urlencode(
-                {"rurl": self.detailurl}
-            )
-            self.htmlcode = self.getHtml(url)
-            if (
-                self.htmlcode != 404
-                and "Sorry! This content is not available in your region."
-                not in self.htmlcode
-            ):
-                self.htmltree = etree.HTML(self.htmlcode)
-                if self.htmltree is not None:
-                    result = self.dictformat(self.htmltree)
-                    return result
+        candidates = self._build_candidate_ids(number)
+        for cid in candidates:
+            payload = self._fetch_content(cid)
+            if payload is None:
+                continue
+            self.detailurl = PAGE_BASE_URL + cid
+            return self._build_movie(payload)
         return 404
 
-    def getNum(self, htmltree):
-        # for some old page, the input number does not match the page
-        # for example, the url will be cid=test012
-        # but the hinban on the page is test00012
-        # so get the hinban first, and then pass it to following functions
-        self.fanza_hinban = self.getFanzaString("品番：")
-        self.number = self.fanza_hinban
-        number_lo = self.number.lower()
-        if (
-            re.sub("-|_", "", number_lo) == self.fanza_hinban
-            or number_lo.replace("-", "00") == self.fanza_hinban
-            or number_lo.replace("-", "") + "so" == self.fanza_hinban
-        ):
-            self.number = self.number
-        return self.number
+    def _build_candidate_ids(self, number: str) -> list[str]:
+        """Build a list of CID candidates to try against the GraphQL API."""
+        candidates: list[str] = []
 
-    def getStudio(self, htmltree):
-        return self.getFanzaString("メーカー")
+        # If specifiedUrl provided, extract id from it first
+        if self.specifiedUrl:
+            cid = self._extract_cid_from_url(self.specifiedUrl)
+            if cid:
+                candidates.append(cid)
 
-    def getOutline(self, htmltree):
+        cleaned = number.strip().lower()
+        cleaned = cleaned.rstrip(".")
+        # h-xxx → h_xxx (legacy fanza prefix uses underscore)
+        if cleaned.startswith("h-"):
+            cleaned = "h_" + cleaned[2:]
+
+        # Strip everything except letters, digits, and underscore
+        normalized = re.sub(r"[^0-9a-z_]", "", cleaned)
+        if normalized and normalized not in candidates:
+            candidates.append(normalized)
+
+        # Try splitting into letter prefix + number, padding number to 5 digits
+        match = re.match(r"^([a-z][a-z0-9_]*?)(\d+)$", normalized)
+        if match:
+            prefix, num = match.group(1), match.group(2)
+            for width in (5, 4, 3):
+                if len(num) < width:
+                    padded = prefix + num.zfill(width)
+                    if padded not in candidates:
+                        candidates.append(padded)
+            # Also try without padding in case the cid has fewer digits
+            stripped = prefix + num.lstrip("0")
+            if stripped and stripped not in candidates:
+                candidates.append(stripped)
+
+        return candidates
+
+    @staticmethod
+    def _extract_cid_from_url(url: str) -> str:
+        """Extract the CID from a Fanza/DMM URL of either format."""
         try:
-            result = self.getTreeElement(htmltree, self.expr_outline).replace("\n", "")
-            if result == "":
-                result = self.getTreeElement(htmltree, self.expr_outline2).replace(
-                    "\n", ""
-                )
-            if "※ 配信方法によって収録内容が異なる場合があります。" == result:
-                result = self.getTreeElement(htmltree, self.expr_outline_og)
-            return result
+            parsed = urlparse(url)
+            qs = parse_qs(parsed.query)
+            if "id" in qs and qs["id"]:
+                return qs["id"][0].lower()
+            if "cid" in qs and qs["cid"]:
+                return qs["cid"][0].lower()
+            # Legacy /=/cid=... path style
+            m = re.search(r"cid=([0-9a-zA-Z_]+)", url)
+            if m:
+                return m.group(1).lower()
         except Exception:
-            return ""
-
-    def getRuntime(self, htmltree):
-        return str(re.search(r"\d+", super().getRuntime(htmltree)).group()).strip(
-            " ['']"
-        )
-
-    def getDirector(self, htmltree):
-        if "anime" not in self.detailurl:
-            return self.getFanzaString("監督：")
+            pass
         return ""
 
-    def getActors(self, htmltree):
-        if "anime" not in self.detailurl:
-            return super().getActors(htmltree)
-        return ""
+    def _fetch_content(self, cid: str) -> dict | None:
+        headers = {
+            "User-Agent": USER_AGENT,
+            "Content-Type": "application/json",
+            "Origin": "https://video.dmm.co.jp",
+            "Referer": PAGE_BASE_URL + cid,
+        }
+        if self.extraheader:
+            headers.update(self.extraheader)
+        cookies = {"age_check_done": "1"}
+        if isinstance(self.cookies, dict):
+            cookies.update(self.cookies)
 
-    def getRelease(self, htmltree):
-        result = self.getFanzaString("発売日：")
-        if result == "" or result == "----":
-            result = self.getFanzaString("配信開始日：")
-        return result.replace("/", "-").strip("\\n")
-
-    def getTags(self, htmltree):
-        return self.getFanzaStrings("ジャンル：")
-
-    def getLabel(self, htmltree):
-        ret = self.getFanzaString("レーベル")
-        if ret == "----":
-            return ""
-        return ret
-
-    def getSeries(self, htmltree):
-        ret = self.getFanzaString("シリーズ：")
-        if ret == "----":
-            return ""
-        return ret
-
-    def getCover(self, htmltree):
-        cover_number = self.number
         try:
-            result = htmltree.xpath('//*[@id="sample-image1"]/img/@src')[0]
-        except Exception:
-            # sometimes fanza modify _ to \u0005f for image id
-            if "_" in cover_number:
-                cover_number = cover_number.replace("_", r"\u005f")
-            try:
-                result = htmltree.xpath('//*[@id="' + cover_number + '"]/@href')[0]
-            except Exception:
-                # (TODO) handle more edge case
-                # print(html)
-                # raise exception here, same behavior as before
-                # people's major requirement is fetching the picture
-                raise ValueError("can not find image")
-        return result
-
-    def getExtrafanart(self, htmltree):
-        htmltext = re.search(
-            r"<div id=\"sample-image-block\"[\s\S]*?<br></div>\s*?</div>", self.htmlcode
-        )
-        if htmltext:
-            htmltext = htmltext.group()
-            extrafanart_images = re.findall(r"<img.*?src=\"(.*?)\"", htmltext)
-            if extrafanart_images:
-                sheet = []
-                for img_url in extrafanart_images[1:]:
-                    url_cuts = img_url.rsplit("-", 1)
-                    sheet.append(url_cuts[0] + "jp-" + url_cuts[1])
-                return sheet
-        return ""
-
-    def getTrailer(self, htmltree):
-        htmltext = re.search(
-            r"<script type=\"application/ld\+json\">[\s\S].*}\s*?</script>",
-            self.htmlcode,
-        )
-        if htmltext:
-            htmltext = htmltext.group()
-            url = re.search(r"\"contentUrl\":\"(.*?)\"", htmltext)
-            if url:
-                url = url.group(1)
-                url = url.rsplit("_", 2)[0] + "_mhb_w.mp4"
-                return url
-        return ""
-
-    def getFanzaString(self, expr):
-        result1 = str(
-            self.htmltree.xpath(
-                "//td[contains(text(),'" + expr + "')]/following-sibling::td/a/text()"
+            resp = requests.post(
+                GRAPHQL_ENDPOINT,
+                json={"query": CONTENT_QUERY, "variables": {"id": cid}},
+                headers=headers,
+                cookies=cookies,
+                proxies=self.proxies,
+                verify=self.verify if self.verify is not None else True,
+                timeout=20,
             )
-        ).strip(" ['']")
-        result2 = str(
-            self.htmltree.xpath(
-                "//td[contains(text(),'" + expr + "')]/following-sibling::td/text()"
-            )
-        ).strip(" ['']")
-        return result1 + result2
+        except Exception as e:
+            logger.debug("fanza GraphQL request failed for %s: %s", cid, e)
+            return None
 
-    def getFanzaStrings(self, string):
-        result1 = self.htmltree.xpath(
-            "//td[contains(text(),'" + string + "')]/following-sibling::td/a/text()"
+        if resp.status_code != 200:
+            logger.debug("fanza GraphQL %s returned status %d", cid, resp.status_code)
+            return None
+        try:
+            data = resp.json()
+        except Exception as e:
+            logger.debug("fanza GraphQL %s invalid JSON: %s", cid, e)
+            return None
+
+        content = (data.get("data") or {}).get("ppvContent")
+        if not content:
+            return None
+        return data["data"]
+
+    def _build_movie(self, payload: dict) -> MovieData:
+        content = payload["ppvContent"]
+        review = payload.get("reviewSummary") or {}
+
+        number = content.get("makerContentId") or content.get("id") or self.number
+
+        actresses = content.get("actresses") or []
+        actor_list = [a["name"] for a in actresses if a.get("name")]
+        actor_photo = {a["name"]: a.get("imageUrl") or "" for a in actresses if a.get("name")}
+
+        directors = content.get("directors") or []
+        director = directors[0]["name"] if directors and directors[0].get("name") else ""
+
+        genres = content.get("genres") or []
+        tags = [g["name"] for g in genres if g.get("name")]
+
+        package = content.get("packageImage") or {}
+        cover = package.get("largeUrl") or package.get("mediumUrl") or ""
+        cover_small = package.get("mediumUrl") or ""
+
+        sample_images = content.get("sampleImages") or []
+        extrafanart = [
+            s.get("largeImageUrl") or s.get("imageUrl")
+            for s in sample_images
+            if s.get("largeImageUrl") or s.get("imageUrl")
+        ]
+
+        sample_movie = content.get("sample2DMovie") or {}
+        trailer = sample_movie.get("highestMovieUrl") or sample_movie.get("hlsMovieUrl") or ""
+
+        release = self._format_release(
+            content.get("makerReleasedAt") or content.get("deliveryStartDate")
         )
-        if len(result1) > 0:
-            return result1
-        result2 = self.htmltree.xpath(
-            "//td[contains(text(),'" + string + "')]/following-sibling::td/text()"
+        year = release[:4] if release else ""
+
+        duration = content.get("duration")
+        runtime = str(duration // 60) if isinstance(duration, int) and duration else ""
+
+        maker = content.get("maker") or {}
+        studio = maker.get("name") or ""
+
+        label_obj = content.get("label") or {}
+        label = label_obj.get("name") or ""
+
+        series_obj = content.get("series") or {}
+        series = series_obj.get("name") or ""
+
+        rating = review.get("average")
+        votes = review.get("total")
+
+        return MovieData(
+            number=number,
+            title=content.get("title") or "",
+            studio=studio,
+            release=release,
+            year=year,
+            outline=content.get("description") or "",
+            runtime=runtime,
+            director=director,
+            actor=", ".join(actor_list),
+            actor_list=actor_list,
+            actor_photo=actor_photo,
+            cover=cover,
+            cover_small=cover_small,
+            extrafanart=extrafanart,
+            trailer=trailer,
+            tag=tags,
+            label=label,
+            series=series,
+            userrating=float(rating) if isinstance(rating, (int, float)) else "",
+            uservotes=int(votes) if isinstance(votes, int) else "",
+            uncensored=False,
+            website=self.detailurl,
+            source=self.source,
+            imagecut=1,
+            allow_number_change=self.allow_number_change,
         )
-        return result2
+
+    @staticmethod
+    def _format_release(value) -> str:
+        if not value or not isinstance(value, str):
+            return ""
+        # Inputs look like "2026-05-04T15:00:00Z"
+        m = re.match(r"(\d{4})-(\d{2})-(\d{2})", value)
+        if m:
+            return f"{m.group(1)}-{m.group(2)}-{m.group(3)}"
+        return ""
